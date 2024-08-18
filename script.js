@@ -1,6 +1,9 @@
 import { getCanvasDomReference } from "./src/utils/getCanvasDomReference.js";
 import { clearScreenWithClearColor } from "./src/utils/clearScreenWithClearColor.js";
 import { initializeShaderProgram } from "./src/utils/initializeShaderProgram.js";
+import { getProgramInfo } from "./src/utils/getProgramInfo.js";
+import { initBuffers } from "./src/utils/initializeBuffers.js";
+import { drawScene } from "./src/utils/drawScene.js";
 
 function main() {
   const canvas = getCanvasDomReference("gl-canvas");
@@ -11,58 +14,46 @@ function main() {
     return;
   }
 
-  // Set clear color to black, fully opaque
   clearScreenWithClearColor(gl, { r: 0.0, g: 0.0, b: 0.0, a: 1.0 });
 
-  // Initialize the shader program using dynamic point size and color
-  const shaderProgram = initializeShaderProgram(gl, 10.0, { r: 0.0, g: 0.1, b: 0.4, a: 1.0 });
+  const shaderProgram = initializeShaderProgram(gl);
+  const programInfo = getProgramInfo(gl, shaderProgram);
 
-  // Collect all the info needed to use the shader program
-  const programInfo = {
-    program: shaderProgram,
-    attribLocations: {
-      vertexPosition: gl.getAttribLocation(shaderProgram, "aVertexPosition"),
+  const objects = [
+    {
+      type: 'triangle',
+      positions: [-0.5, -0.4, 0.4, -0.4, 0.05, 0.4],
+      color: [1.0, 1.0, 0.0, 1.0]
     },
-  };
+    {
+      type: 'line',
+      positions: [-0.5, -0.5, 0.5, 0.5],
+      color: [0.0, 1.0, 0.0, 1.0]
+    },
+    {
+      type: 'point',
+      positions: [-1, 1],
+      color: [1.0, 0.0, 0.0, 1.0],
+      size: 15.0 
+    },
+  ];
 
-  // Initialize buffers and draw the scene
-  const buffers = initBuffers(gl);
-  drawScene(gl, programInfo, buffers);
-}
+  const buffers = objects.map(obj => initBuffers(gl, obj));
 
-// Initialize the buffers
-function initBuffers(gl) {
-  const positionBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-
-  // Position for the point at the center
-  const positions = [0.0, 0.0];
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
-
-  return {
-    position: positionBuffer,
-  };
-}
-
-// Draw the scene
-function drawScene(gl, programInfo, buffers) {
   gl.clear(gl.COLOR_BUFFER_BIT);
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position);
-  gl.vertexAttribPointer(
-    programInfo.attribLocations.vertexPosition,
-    2, // Pull out 2 values per iteration (x, y)
-    gl.FLOAT, // The data in the buffer is 32bit floats
-    false, // Don't normalize
-    0, // How many bytes to get from one set of values to the next
-    0 // How many bytes inside the buffer to start from
-  );
-  gl.enableVertexAttribArray(programInfo.attribLocations.vertexPosition);
-
-  gl.useProgram(programInfo.program);
-
-  // Draw the point
-  gl.drawArrays(gl.POINTS, 0, 1);
+  objects.forEach((obj, index) => {
+    if (gl.isContextLost()) {
+      console.error('WebGL context is lost!');
+      return;
+    }
+    drawScene(gl, programInfo, buffers[index], obj);
+    
+    const error = gl.getError();
+    if (error !== gl.NO_ERROR) {
+      console.error(`WebGL error after drawing ${obj.type}: ${error}`);
+    }
+  });
 }
 
 main();
